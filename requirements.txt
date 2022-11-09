@@ -1,0 +1,7 @@
+beautifulsoup4==4.11.1
+geocoder==1.38.1
+geopy==2.2.0
+pyshorteners==1.0.1
+python_telegram_bot==13.12
+requests==2.27.1
+telegram==0.0.1
