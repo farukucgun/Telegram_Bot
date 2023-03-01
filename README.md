@@ -10,7 +10,7 @@
 
 - Daily Bilkent meal schedule and daily weather forecast are available.
 
-![Meal_Image](resources/.png)
+![Meal_Image](resources/meal.png)
 
 ![Weather_Image](resources/weather.png)
 
