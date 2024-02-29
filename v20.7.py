@@ -38,6 +38,7 @@ take anonymous feedback
 trivia quiz and word game
 create polls, surveys
 respond to normal messages (enable from botfather)
+login to srs --> get the cookies 
 """
 
 
@@ -64,7 +65,7 @@ async def help(update: Update, context: ContextTypes):
         if command == "help":
             await update.message.reply_text("Usage: /help \n\n" + "This will show the available commands")
         elif command == "weather":
-            await update.message.reply_text("Usage: /weather [city] \n\n" + "Example: /weather Ankara \n\n" + "This will show the weather for Ankara. If no city is given, Ankara's weather will be shown.")
+            await update.message.reply_text("Usage: /weather [request_type] [city] \n\n" + "Supported Request Types: current, hourly, daily \n\n" + "Example: /weather current Ankara \n\n" + "This will show the current weather for Ankara. If no request type is given, current weather will be shown. If no city is given, Ankara's weather will be shown.")
         elif command == "menu":
             await update.message.reply_text("Usage: /menu [day] \n\n" + "Supported Days: 1-7 \n\n" + "Example: /menu 1 \n\n" + "This will show the menu for Monday. If no day is given, today's menu will be shown.")
         elif command == "shorten":
@@ -88,46 +89,87 @@ async def echo(update: Update, context: ContextTypes):
 
 @restricted
 async def get_weather(update: Update, context: ContextTypes):
-    help = "Usage: /weather [city] \n\n" + "Example: /weather Ankara \n\n" + "This will show the weather for Ankara. If no city is given, Ankara's weather will be shown."
-    city = update.message.text.split(' ')[1] if len(update.message.text.split(' ')) > 1 else None
+    help = "Usage: /weather [request_type] [city] \n\n" + "Supported Request Types: current, hourly, daily \n\n" + "Example: /weather current Ankara \n\n" + "This will show the current weather for Ankara. If no request type is given, current weather will be shown. If no city is given, Ankara's weather will be shown."
+    params = update.message.text.split(' ')[1:] if len(update.message.text.split(' ')) > 1 else None
+    city = "Ankara"
+    request_type = "current"
+    if params is not None:
+        if params[0] in ["current", "hourly", "daily"]:
+            request_type = params[0]
+            city = params[1] if len(params) > 1 else "Ankara"
+        else:
+            city = params[0]
 
-    g = geocoder.ip('me')
-    lat = g.lat
-    lng = g.lng
+    geolocator = Nominatim(user_agent="Your_Name")
+    location = geolocator.geocode(city)
+    if location is None:
+        await update.message.reply_text("Invalid city \n\n" + help)
+        return
+    
+    lat = location.latitude
+    lng = location.longitude
 
-    if city is not None:
-        geolocator = Nominatim(user_agent="Your_Name")
-        location = geolocator.geocode(city)
-        if location is None:
-            await update.message.reply_text("Invalid city \n\n" + help)
-            return
-        lat = location.latitude
-        lng = location.longitude
+    if request_type == "current":
+        weather_params = "current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,rain,showers,snowfall,wind_speed_10m"
+    elif request_type == "hourly":
+        weather_params = "hourly=temperature_2m,precipitation_probability,precipitation,wind_speed_10m"
+    elif request_type == "daily":
+        weather_params = "daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,precipitation_probability_max"
+    else:
+        await update.message.reply_text("Invalid request type \n\n" + help)
+        return
 
-    hourly_params = "temperature_2m,windspeed_10m,rain"
-    daily_params = "rain_sum,sunrise,sunset,temperature_2m_max,temperature_2m_min"
-
-    res = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}"
-                       f"&timezone=auto&hourly={hourly_params}&daily={daily_params}")
+    forecast_days = 1
+    res = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&timezone=auto&{weather_params}&forecast_days={forecast_days}")
 
     data = res.json()
-    daily = data['daily']
-    hourly = data['hourly']
 
-    daily_rain = f"Rain for today: {daily['rain_sum'][0]} mm\n"
-    daily_sunrise = f"Sunrise time for today: {str(daily['sunrise'][0]).split('T')[1]}\n"
-    daily_sunset = f"Sunset time for today: {str(daily['sunset'][0]).split('T')[1]}\n"
-    daily_max_temp = f"Maximum temperature for today: {daily['temperature_2m_max'][0]} °C\n"
-    daily_min_temp = f"Minimum temperature for today: {daily['temperature_2m_min'][0]} °C\n"
+    if request_type == "current":
+        current = data['current']
+        current_units = data['current_units']
+        message = f"Current weather for {city}: \n\n" \
+                  f"Temperature: {current['temperature_2m']} {current_units['temperature_2m']}\n" \
+                  f"Apparent Temperature: {current['apparent_temperature']} {current_units['apparent_temperature']}\n" \
+                  f"Relative Humidity: {current['relative_humidity_2m']} {current_units['relative_humidity_2m']}\n" \
+                  f"Precipitation: {current['precipitation']} {current_units['precipitation']}\n" \
+                  f"Rain: {current['rain']} {current_units['rain']}\n" \
+                  f"Showers: {current['showers']} {current_units['showers']}\n" \
+                  f"Snowfall: {current['snowfall']} {current_units['snowfall']}\n" \
+                  f"Wind Speed: {current['wind_speed_10m']} {current_units['wind_speed_10m']}\n"
+        
+        await update.message.reply_text(message)
+        return
 
-    message = "--Daily Summary--\n\n" + daily_sunrise + daily_sunset + daily_rain + daily_max_temp + daily_min_temp + \
-        "\n--Detailed Weather--\n\n"
+    elif request_type == "hourly":
+        hourly = data["hourly"]
+        hourly_units = data["hourly_units"]
+        message = f"Hourly weather for {city}: \n\n"
+        for i in range(24):
+            message += f"{str(hourly['time'][i]).split('T')[1]}: {hourly['temperature_2m'][i]} {hourly_units['temperature_2m']} " \
+                       f"and {hourly['precipitation'][i]} {hourly_units['precipitation']} rain " \
+                       f"with probability: {hourly['precipitation_probability'][i]} {hourly_units['precipitation_probability']} " \
+                       f"and wind speed: {hourly['wind_speed_10m'][i]} {hourly_units['wind_speed_10m']} \n\n"
+                    
+        await update.message.reply_text(message)
+        return
+    
+    elif request_type == "daily":
+        daily = data["daily"]
+        daily_units = data["daily_units"]
+        message = f"Daily weather for {city}: \n\n" \
+                  f"Sunrise: {str(daily['sunrise'][0]).split('T')[1]}\n" \
+                  f"Sunset: {str(daily['sunset'][0]).split('T')[1]}\n" \
+                  f"Rain: {daily['precipitation_sum'][0]} {daily_units['precipitation_sum']}\n" \
+                  f"Rain Probability: {daily['precipitation_probability_max'][0]} {daily_units['precipitation_probability_max']}\n" \
+                  f"Maximum Temperature: {daily['temperature_2m_max'][0]} {daily_units['temperature_2m_max']}\n" \
+                  f"Minimum Temperature: {daily['temperature_2m_min'][0]} {daily_units['temperature_2m_min']}\n"
+        
+        await update.message.reply_text(message)
+        return
 
-    for i in range(24):
-        message += f"{str(hourly['time'][i]).split('T')[1]}:   {hourly['temperature_2m'][i]} °C with wind speed:   " \
-                   f"{hourly['windspeed_10m'][i]} km/h and {hourly['rain'][i]} mm rain\n"
-
-    await update.message.reply_text(message)
+    else :
+        await update.message.reply_text("Invalid request type \n\n" + help)
+        return
 
 
 @restricted
