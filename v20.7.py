@@ -74,7 +74,7 @@ async def help(update: Update, context: ContextTypes):
         elif command == "timer":
             await update.message.reply_text("Usage: /timer <time in minutes> \n\n" + "Example: /timer 5 \n\n" + "This will start a timer for 5 minutes")
         elif command == "translate":
-            await update.message.reply_text("Usage: /translate \"<text>\" <destination language> \n\n" + "Supported Languages: " + str(constants.LANGUAGES) + "\n\n" + "Example: /translate \"Hello World\" tr \n\n" + "This will translate the text to Turkish")
+            await update.message.reply_text("Usage: /translate \"<text>\" [source language] <destination language> \n\n" + "Supported Languages: " + str(constants.LANGUAGES) + "\n\n" + "Example: /translate \"Hello World\" en tr \n\n" + "This will translate the English text to Turkish \n\n" + "If no source language is given, it will be automatically detected")
         elif command == "news":
             await update.message.reply_text("Usage: /news <country> <category> <query> \n\n" + "Supported Countries: " + str(news_countries) + "\n" + "Supported Categories: " + str(news_categories) + "\n\n" + "Use a dot(.) for empty parameters \n\n" + "Example: /news tr general . \n\n" + "This will show the top 5 news for Turkey in general category")
         else:
