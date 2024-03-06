@@ -12,6 +12,7 @@ import pyshorteners
 import asyncio
 from googletrans import Translator, constants
 from functools import wraps
+import re
 
 ####################
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -263,23 +264,41 @@ async def timer_task(update: Update, minutes: int):
 
 @restricted
 async def translate(update: Update, context: ContextTypes):
-    help = "Usage: /translate \"<text>\" <destination language> \n\n" + "Supported Languages: " + str(constants.LANGUAGES) + "\n\n" + "Example: /translate \"Hello World\" tr \n\n" + "This will translate the text to Turkish"
-    parts = update.message.text.split('\"')
-    if len(parts) < 2:
+    help = "Usage: /translate \"<text>\" [source language] <destination language> \n\n" + "Supported Languages: " + str(constants.LANGUAGES) + "\n\n" + "Example: /translate \"Hello World\" en tr \n\n" + "This will translate the English text to Turkish \n\n" + "If no source language is given, it will be automatically detected"
+    pattern = r'/translate(?:\s+"([^"]*)")?(?:\s+(\w+))?(?:\s+(\w+))?$'
+    match = re.match(pattern, update.message.text)
+    
+    if match is None:
+        await update.message.reply_text("Please enter a valid command \n\n" + help)
+        return
+    
+    groups = match.groups()
+    text = groups[0]
+    
+    if text is None:
         await update.message.reply_text("Please enter a text to translate \n\n" + help)
         return
     
-    text = parts[1]
-    if len(parts) < 3:
-        dest_lang = "en"
+    if groups[1] is not None and groups[2] is None:
+        src_lang = "auto"
+        dest_lang = groups[1]
+    elif groups[1] is not None and groups[2] is not None:
+        src_lang = groups[1]
+        dest_lang = groups[2]
     else:
-        dest_lang = parts[2].replace(" ", "")
+        src_lang = "auto"
+        dest_lang = "en"
+    
     if dest_lang not in constants.LANGUAGES:
         await update.message.reply_text("Invalid destination language \n\n" + help)
         return
     
+    if src_lang not in constants.LANGUAGES and src_lang != "auto":
+        await update.message.reply_text("Invalid source language \n\n" + help)
+        return
+    
     translator = Translator()
-    translation = translator.translate(text, dest=dest_lang)
+    translation = translator.translate(text, src=src_lang, dest=dest_lang)
     await update.message.reply_text(translation.text)    
 
 
