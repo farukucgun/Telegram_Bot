@@ -1,5 +1,6 @@
-from telegram import ForceReply, Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram import ForceReply, Update, KeyboardButton, KeyboardButtonPollType, ReplyKeyboardMarkup
+from telegram.constants import ParseMode
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, PollHandler, PollAnswerHandler
 import logging
 import requests
 import datetime
@@ -40,6 +41,7 @@ trivia quiz and word game
 create polls, surveys
 respond to normal messages (enable from botfather)
 login to srs --> get the cookies 
+run bash commands
 """
 
 
@@ -263,6 +265,93 @@ async def timer_task(update: Update, minutes: int):
 
 
 @restricted
+async def create_poll(update: Update, context: ContextTypes):
+    help = "Usage: /poll \"<question>\" <option1> <option2> ... <option10> \n\n" + "Example: /poll \"What is your favourite color?\" Red Blue Green \n\n" + "This will create a poll with the given question and options"
+    pattern = r'/poll(?:\s+"([^"]*)")?(?:\s+(.*))?$'
+    match = re.match(pattern, update.message.text)
+
+    if match is None:
+        await update.message.reply_text("Please enter a valid command \n\n" + help)
+        return
+    
+    groups = match.groups()
+    question = groups[0]
+    options = groups[1].split(' ') if groups[1] is not None else None
+
+    if question is None:
+        await update.message.reply_text("Please enter a question \n\n" + help)
+        return
+    
+    if len(options) < 2 or len(options) > 10:
+        await update.message.reply_text("Please enter between 2 and 10 options \n\n" + help)
+        return
+    
+    message = await context.bot.send_poll(update.effective_chat.id, question, options, is_anonymous=False)
+
+    payload = {
+        message.poll.id: {
+            "message_id": message.message_id,
+            "chat_id": update.effective_chat.id,
+            "options": options,
+            "answers": 0
+        }
+    }
+
+    context.bot_data.update(payload)
+
+
+@restricted
+async def receive_poll_answers(update: Update, context: ContextTypes):
+    answer = update.poll_answer
+    answered_poll = context.bot_data[answer.poll_id]
+
+    try:
+        options = answered_poll["options"]
+    except KeyError:
+        return
+    
+    selected_options = answer.option_ids
+    answer_string = ""
+    for question_id in selected_options:
+        if question_id != selected_options[-1]:
+            answer_string += options[question_id] + " and "
+        else:
+            answer_string += options[question_id]
+    await context.bot.send_message(
+        answered_poll["chat_id"],
+        f"{update.effective_user.mention_html()} feels {answer_string}!",
+        parse_mode=ParseMode.HTML,
+    )
+    answered_poll["answers"] += 1
+    # Close poll after all users voted
+    if answered_poll["answers"] == 1:
+        await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
+
+    
+async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ask user to create a poll and display a preview of it"""
+    button = [[KeyboardButton("Press me!", request_poll=KeyboardButtonPollType())]]
+    message = "Press the button to let the bot generate a preview for your poll"
+    # using one_time_keyboard to hide the keyboard
+    await update.effective_message.reply_text(
+        message, reply_markup=ReplyKeyboardMarkup(button, one_time_keyboard=True)
+    )
+
+
+@restricted
+async def receive_poll(update: Update, context: ContextTypes):
+    poll = update.poll
+    
+    await update.message.reply_poll(
+        question=poll.question,
+        options=poll.options,
+        is_anonymous=poll.is_anonymous,
+        allows_multiple_answers=poll.allows_multiple_answers,
+        is_closed=True
+    )
+
+
+@restricted
 async def translate(update: Update, context: ContextTypes):
     help = "Usage: /translate \"<text>\" [source language] <destination language> \n\n" + "Supported Languages: " + str(constants.LANGUAGES) + "\n\n" + "Example: /translate \"Hello World\" en tr \n\n" + "This will translate the English text to Turkish \n\n" + "If no source language is given, it will be automatically detected"
     pattern = r'/translate(?:\s+"([^"]*)")?(?:\s+(\w+))?(?:\s+(\w+))?$'
@@ -357,8 +446,11 @@ def main():
     application.add_handler(CommandHandler("timer", timer))
     application.add_handler(CommandHandler("translate", translate))
     application.add_handler(CommandHandler("news", news))
+    application.add_handler(CommandHandler("poll", create_poll))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.POLL, receive_poll))
 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    application.add_handler(PollAnswerHandler(receive_poll_answers))
+
     application.add_handler(MessageHandler(filters.COMMAND, unknown))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
