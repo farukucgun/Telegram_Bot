@@ -196,29 +196,25 @@ async def menu(update: Update, context: ContextTypes):
     res = requests.get("http://kafemud.bilkent.edu.tr/monu_eng.html")
     soup = bs4.BeautifulSoup(res.content, "lxml")
 
-    meals = [[]]
-    for i in range(0, 8):
-        meals.insert(i, [5 * i + 4, 5 * i + 5, 5 * i + 6, 5 * i + 7])
-
     table = soup.find_all("table")[3]
-    blocks = table.find_all("td")
+    blocks = table.find_all("td") 
 
-    lunch = " ".join(blocks[meals[day_of_week][0]].getText().split())
-    lunch_nutr = " ".join(blocks[meals[day_of_week][1]].getText().split())
+    lunch_nutr = " ".join(blocks[31 * day_of_week + 9].getText().split())
 
-    dinner = " ".join(blocks[meals[day_of_week][2]].getText().split())
-    dinner_nutr = " ".join(blocks[meals[day_of_week][3]].getText().split())
+    lunch = ''
+    for i in range(31 * day_of_week + 10, 31 * day_of_week + 22):
+        lunch += " ".join(blocks[i].getText().split()) + " "
 
-    i = 0
-    while i < len(dinner_nutr):
-        if dinner_nutr[i] == '%':
-            dinner_nutr = dinner_nutr[:i + 1] + " " + dinner_nutr[i + 1:]
-            i += 1
-        i += 1
+    dinner_nutr = " ".join(blocks[31 * day_of_week + 24].getText().split())
 
-    message = lunch.split('Lunch')[0] + "\n" + lunch.split('Lunch')[1] + "\n\nBesin değeri / Nutrition Facts\n" + \
-        lunch_nutr + "\n\n" + dinner.split('Dinner')[0] + "\n" + dinner.split('Dinner')[1] + \
-        "\n\nBesin değeri / Nutrition Facts\n" + dinner_nutr
+    dinner = ''
+    for i in range(31 * day_of_week + 25, 31 * day_of_week + 37):
+        dinner += " ".join(blocks[i].getText().split()) + " "
+
+    message = f"Lunch Nutrition: {lunch_nutr} \n\n" \
+                f"Lunch Menu: {lunch} \n\n" \
+                f"Dinner Nutrition: {dinner_nutr} \n\n" \
+                f"Dinner Menu: {dinner}"
 
     await update.message.reply_text(message)
 
