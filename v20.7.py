@@ -199,16 +199,16 @@ async def menu(update: Update, context: ContextTypes):
     table = soup.find_all("table")[3]
     blocks = table.find_all("td") 
 
-    lunch_nutr = " ".join(blocks[31 * day_of_week + 9].getText().split())
+    lunch_nutr = " ".join(blocks[27 * day_of_week + 9].getText().split())
 
     lunch = ''
-    for i in range(31 * day_of_week + 10, 31 * day_of_week + 22):
+    for i in range(27 * day_of_week + 10, 27 * day_of_week + 20):
         lunch += " ".join(blocks[i].getText().split()) + " "
 
-    dinner_nutr = " ".join(blocks[31 * day_of_week + 24].getText().split())
+    dinner_nutr = " ".join(blocks[27 * day_of_week + 22].getText().split())
 
     dinner = ''
-    for i in range(31 * day_of_week + 25, 31 * day_of_week + 37):
+    for i in range(27 * day_of_week + 23, 27 * day_of_week + 33):
         dinner += " ".join(blocks[i].getText().split()) + " "
 
     message = f"Lunch Nutrition: {lunch_nutr} \n\n" \
